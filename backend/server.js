@@ -16,7 +16,9 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key_12345';
 // 1. Initialize AWS SNS (Requirement 8 & 10)
 const sns = new AWS.SNS({ region: process.env.AWS_REGION });
 
-app.use(cors());
+app.use(cors({
+  origin: 'https://your-project-name.vercel.app' // Paste your Vercel URL here
+}));
 app.use(express.json());
 
 // Verify Database Connection on Startup
