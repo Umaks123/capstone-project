@@ -17,7 +17,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key_12345';
 const sns = new AWS.SNS({ region: process.env.AWS_REGION });
 
 app.use(cors({
-  origin: 'https://your-project-name.vercel.app' // Paste your Vercel URL here
+  origin: 'https://capstone-project-m2wwj75lu-umaks123s-projects.vercel.app' // Paste your Vercel URL here
 }));
 app.use(express.json());
 
