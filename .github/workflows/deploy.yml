@@ -55,7 +55,7 @@ jobs:
           npm install
           npm run build
         env:
-          VITE_API_URL:""
+          VITE_API_URL: ""
 
       - name: Deploy to S3 (Website Bucket)
         uses: jakejarvis/s3-sync-action@master
