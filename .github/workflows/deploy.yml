@@ -55,7 +55,7 @@ jobs:
           npm install
           npm run build
         env:
-          VITE_API_URL: http://capstone-lb-1373403786.ap-south-1.elb.amazonaws.com
+          VITE_API_URL: https://uma.monster
 
       - name: Deploy to S3 (Website Bucket)
         uses: jakejarvis/s3-sync-action@master

@@ -22,7 +22,11 @@ const sns = new AWS.SNS({
 });
 
 // Middleware
-app.use(cors()); // Allows your Frontend to communicate with this Backend
+app.use(cors({
+  origin: ['https://uma.monster', 'https://www.uma.monster', 'http://capstone-frontend-bucket-for-uma.s3-website.ap-south-1.amazonaws.com']
+}));
+
+// Allows your Frontend to communicate with this Backend
 app.use(express.json());
 
 // --- DATABASE CONNECTION CHECK ---
