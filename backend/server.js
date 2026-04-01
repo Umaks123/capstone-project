@@ -24,7 +24,7 @@ const sns = new AWS.SNS({
 // Middleware
 
 app.use(cors({
-  origin: ['https://uma.monster', 'https://www.uma.monster', 'https://uma.monster/api', 'd245n88ugk34l4.cloudfront.net' , 'http://capstone-frontend-bucket-for-uma.s3-website.ap-south-1.amazonaws.com']
+  origin: ['https://uma.monster', 'https://www.uma.monster']
 }));
 
 // Allows your Frontend to communicate with this Backend
