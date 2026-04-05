@@ -40,7 +40,7 @@ jobs:
           npm install
           npm run build
         env:
-          VITE_API_URL: "https://d2xcudbcsu730p.cloudfront.net"
+          VITE_API_URL: " "
 
       - name: Deploy to S3 (Website Bucket)
         uses: jakejarvis/s3-sync-action@master
@@ -53,4 +53,3 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           SOURCE_DIR: 'frontend/dist'
 
-     
