@@ -11,13 +11,37 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # 1. Configure AWS Credentials so GitHub can talk to the Auto Scaler
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+      - name: Deploy to EC2 and Create .env
+        uses: appleboy/ssh-action@master
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            mkdir -p /home/ubuntu/capstone-app
+            cd /home/ubuntu/capstone-app
+            # Update code
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/${{ github.repository }}.git .
+            else
+              git pull origin main
+            fi
+            
+            # CREATE .ENV FILE AUTOMATICALLY ON EC2
+            cd backend
+            echo "PORT=5000" > .env
+            echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+            echo "DB_SERVER=${{ secrets.DB_SERVER }}" >> .env
+            echo "DB_DATABASE=${{ secrets.DB_DATABASE }}" >> .env
+            echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env
+            echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env
+            echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> .env
+            echo "AWS_SNS_TOPIC_ARN=${{ secrets.AWS_SNS_TOPIC_ARN }}" >> .env
+            echo "S3_BUCKET_NAME=${{ secrets.AWS_S3_UPLOAD_BUCKET }}" >> .env
+            
+            npm install
+            pm2 restart all || pm2 start server.js --name "backend"
 
       # 2. Trigger the ASG to update ALL servers (Requirement 7)
       # This removes the need for SSH/Port 22 entirely!
@@ -29,7 +53,6 @@ jobs:
             
   deploy-frontend:
     runs-on: ubuntu-latest
-    needs: deploy-backend
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -40,7 +63,7 @@ jobs:
           npm install
           npm run build
         env:
-          VITE_API_URL: " "
+          VITE_API_URL: ""
 
       - name: Deploy to S3 (Website Bucket)
         uses: jakejarvis/s3-sync-action@master
@@ -52,4 +75,3 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
           SOURCE_DIR: 'frontend/dist'
-
