@@ -42,14 +42,7 @@ jobs:
             
             npm install
             pm2 restart all || pm2 start server.js --name "backend"
-
-      # 2. Trigger the ASG to update ALL servers (Requirement 7)
-      # This removes the need for SSH/Port 22 entirely!
-      - name: Trigger ASG Instance Refresh
-        run: |
-          aws autoscaling start-instance-refresh \
-            --auto-scaling-group-name capstone-asg \
-            --preferences '{"MinHealthyPercentage": 50}'
+            
             
   deploy-frontend:
     runs-on: ubuntu-latest
