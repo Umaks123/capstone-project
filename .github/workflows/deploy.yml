@@ -65,7 +65,7 @@ jobs:
           # NOTE: Ensure VITE_API_URL points to your production URL
           npm run build
         env:
-          VITE_API_URL: "https://uma.monster/api"
+          VITE_API_URL: ""
 
       - name: Deploy to S3 (Website Bucket)
         uses: jakejarvis/s3-sync-action@master
