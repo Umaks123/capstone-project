@@ -11,19 +11,29 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # 1. SSH into your MAIN server to pull the new code
-      # This ensures the 'git origin' is updated
-      - name: Deploy to Master Instance
+      # 1. SSH into your server and update the backend
+      - name: Deploy to Backend Server
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.EC2_HOST }}
+          host: ${{ secrets.EC2_HOST }}      # Make sure this is your NEW Public IP
           username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
+          key: ${{ secrets.EC2_SSH_KEY }}    # Your .pem file content
           script: |
+            # Navigate to the verified backend folder
             cd /home/ubuntu/capstone-app/backend
+            
+            # Pull latest code
             git pull origin main
+            
+            # Install dependencies
             npm install
-            pm2 restart backend
+            
+            # Restart the app (if it exists) OR start it for the first time
+            # We use server.js because we verified that is your filename
+            pm2 restart backend || pm2 start server.js --name "backend"
+            
+            # Save PM2 state so it survives a reboot
+            pm2 save
 
       # 2. Configure AWS Credentials
       - name: Configure AWS Credentials
@@ -33,12 +43,13 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # 3. Now trigger the refresh so the OTHER servers pull the new code on boot
+      # 3. Trigger ASG Instance Refresh (Keep this if you use an Auto Scaling Group)
       - name: Trigger ASG Instance Refresh
         run: |
           aws autoscaling start-instance-refresh \
             --auto-scaling-group-name capstone-asg \
             --preferences '{"MinHealthyPercentage": 50}'
+        continue-on-error: true # Prevents the whole pipeline from failing if ASG isn't set up
 
   deploy-frontend:
     runs-on: ubuntu-latest
@@ -51,9 +62,10 @@ jobs:
         run: |
           cd frontend
           npm install
+          # NOTE: Ensure VITE_API_URL points to your production URL
           npm run build
         env:
-          VITE_API_URL: ""
+          VITE_API_URL: "https://uma.monster/api"
 
       - name: Deploy to S3 (Website Bucket)
         uses: jakejarvis/s3-sync-action@master
@@ -66,7 +78,7 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           SOURCE_DIR: 'frontend/dist'
 
-      # --- EXTRA: CLOUDFRONT INVALIDATION START ---
+      # 4. Clear the CloudFront Cache
       - name: Invalidate CloudFront Cache
         run: |
           aws cloudfront create-invalidation \
@@ -76,4 +88,3 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
-      # --- EXTRA: CLOUDFRONT INVALIDATION END ---
