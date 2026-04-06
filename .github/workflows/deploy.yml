@@ -11,7 +11,21 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # 1. Configure AWS Credentials so GitHub can talk to the Auto Scaler
+      # 1. SSH into your MAIN server to pull the new code
+      # This ensures the 'git origin' is updated
+      - name: Deploy to Master Instance
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/capstone-app/backend
+            git pull origin main
+            npm install
+            pm2 restart backend
+
+      # 2. Configure AWS Credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -19,9 +33,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-
-      # 2. Trigger the ASG to update ALL servers (Requirement 7)
-      # This removes the need for SSH/Port 22 entirely!
+      # 3. Now trigger the refresh so the OTHER servers pull the new code on boot
       - name: Trigger ASG Instance Refresh
         run: |
           aws autoscaling start-instance-refresh \
