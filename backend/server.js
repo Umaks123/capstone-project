@@ -122,16 +122,16 @@ app.post('/api/upload', upload.single('myFile'), async (req, res) => {
 
         // 2. Trigger Async Processing Event (Requirement 8)
         // This message can be picked up by an AWS Lambda or SQS
-        await sns.publish({
-            Message: JSON.stringify({
-                event: "NEW_FILE_UPLOADED",
-                fileName: req.file.originalname,
-                s3Url: req.file.location,
-                timestamp: new Date().toISOString()
-            }),
+        // Remove 'await' from the start
+        sns.publish({
+            Message: `SECURITY ALERT: Successful login...`,
             TopicArn: process.env.AWS_SNS_TOPIC_ARN
-        }).promise();
+        }).promise().catch(err => console.error("SNS Background Error:", err));
 
+        // Now the response is sent to the user immediately
+        res.json({ success: true, token });
+        
+       
         console.log(`📁 File Uploaded and Logged: ${req.file.originalname}`);
         res.status(200).json({ 
             success: true, 
