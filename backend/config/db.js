@@ -9,12 +9,12 @@ const dbConfig = {
     options: {
         encrypt: true, 
         trustServerCertificate: true,
-        connectTimeout: 80000 // Give it 30 seconds to connect
+        connectTimeout: 30000 // Give it 30 seconds to connect
     },
     pool: {
         max: 10, // Max 10 users at the exact same millisecond
         min: 0,
-        idleTimeoutMillis: 80000
+        idleTimeoutMillis: 30000
     }
 };
 
