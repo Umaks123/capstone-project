@@ -42,14 +42,16 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
+          
 
       # 3. Trigger ASG Instance Refresh (Keep this if you use an Auto Scaling Group)
+      # 3. Trigger ASG Instance Refresh (THIS IS THE SAME COMMAND)
       - name: Trigger ASG Instance Refresh
         run: |
           aws autoscaling start-instance-refresh \
             --auto-scaling-group-name capstone-asg \
-            --preferences '{"MinHealthyPercentage": 50}'
-        continue-on-error: true # Prevents the whole pipeline from failing if ASG isn't set up
+            --preferences '{"MinHealthyPercentage": 50}' # This ensures at least 1 server stays alive during the refresh
+        continue-on-error: truef ASG isn't set up
 
   deploy-frontend:
     runs-on: ubuntu-latest
