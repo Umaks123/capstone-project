@@ -5,67 +5,51 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
-// Unified Database Configuration
 const { connectDB, sql } = require('./config/db'); 
-// S3 Upload Logic (Requirement 5)
 const upload = require('./services/uploadService'); 
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_dev';
 
-// Initialize AWS SNS (Requirements 8 & 10)
 const sns = new AWS.SNS({ 
     region: process.env.AWS_REGION,
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
 });
 
-// Middleware
-
 app.use(cors({
   origin: ['https://uma.monster', 'https://www.uma.monster']
 }));
 
-// Allows your Frontend to communicate with this Backend
 app.use(express.json());
 
-// --- DATABASE CONNECTION CHECK ---
 connectDB().then(() => {
     console.log("✅ Successfully connected to Unified CapstoneDB");
 }).catch(err => {
     console.error("❌ Database initialization failed:", err.message);
 });
 
-
-// --- AUTHENTICATION ROUTES (Requirement 10: Logging & Alerts) ---
-
-/**
- * ROUTE: Register
- */
+// --- REGISTER ---
 app.post('/api/auth/register', async (req, res) => {
     const { username, email, password } = req.body;
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
         const pool = await connectDB(); 
-        
         await pool.request()
             .input('username', sql.VarChar, username)
             .input('email', sql.VarChar, email)
             .input('password', sql.VarChar, hashedPassword)
             .query('INSERT INTO Users (Username, Email, PasswordHash) VALUES (@username, @email, @password)');
 
-        console.log(`👤 User Registered: ${email}`);
         res.status(201).json({ success: true, message: "User registered successfully" });
     } catch (err) {
         console.error("Registration Error:", err.message);
-        res.status(500).json({ success: false, error: "Registration failed. Check if table exists." });
+        res.status(500).json({ success: false, error: "Registration failed." });
     }
 });
 
-/**
- * ROUTE: Login
- */
+// --- LOGIN ---
 app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
     try {
@@ -78,24 +62,23 @@ app.post('/api/auth/login', async (req, res) => {
 
         if (user && await bcrypt.compare(password, user.PasswordHash)) {
             
-            // 1. Audit Logging (Requirement 10)
-            await pool.request()
-                .input('email', sql.VarChar, email)
-                .query('INSERT INTO LoginLogs (Email, LoginTime) VALUES (@email, GETDATE())');
+            // Log the login - wrapped in try/catch so a DB error here doesn't stop the login
+            try {
+                await pool.request()
+                    .input('email', sql.VarChar, email)
+                    .query('INSERT INTO LoginLogs (Email, LoginTime) VALUES (@email, GETDATE())');
+            } catch (e) { console.error("Logging failed:", e.message); }
 
-            // 2. Real-time Security Alert (Requirement 10)
-            await sns.publish({
-                Message: `SECURITY ALERT: Successful login detected for user ${email} at ${new Date().toISOString()}`,
+            // SNS Alert - REMOVED 'await' so it doesn't hang the response
+            sns.publish({
+                Message: `SECURITY ALERT: Successful login for ${email}`,
                 TopicArn: process.env.AWS_SNS_TOPIC_ARN
-            }).promise();
+            }).promise().catch(err => console.error("SNS Error:", err));
 
-            // Generate Token
             const token = jwt.sign({ userId: user.Id, email: user.Email }, JWT_SECRET, { expiresIn: '2h' });
-            
-            console.log(`✅ Login Successful: ${email}`);
             res.json({ success: true, token });
         } else {
-            res.status(401).json({ success: false, message: "Invalid email or password" });
+            res.status(401).json({ success: false, message: "Invalid credentials" });
         }
     } catch (err) {
         console.error("Login Error:", err.message);
@@ -103,56 +86,38 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-
-// --- FILE UPLOAD ROUTES (Requirement 5 & 8) ---
-
-/**
- * ROUTE: Upload to S3 + Save Metadata
- */
+// --- UPLOAD ---
 app.post('/api/upload', upload.single('myFile'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).send({ success: false, message: 'No file provided.' });
 
-        // 1. Store Metadata in RDS (Requirement 5)
         const pool = await connectDB(); 
         await pool.request()
             .input('fileName', sql.VarChar, req.file.originalname)
             .input('fileUrl', sql.VarChar, req.file.location) 
             .query('INSERT INTO FileMetadata (FileName, FileUrl, UploadDate) VALUES (@fileName, @fileUrl, GETDATE())');
 
-        // 2. Trigger Async Processing Event (Requirement 8)
-        // This message can be picked up by an AWS Lambda or SQS
-        // Remove 'await' from the start
+        // Cleaned up SNS call
         sns.publish({
-            Message: `SECURITY ALERT: Successful login...`,
+            Message: `FILE UPLOAD: ${req.file.originalname} uploaded by system.`,
             TopicArn: process.env.AWS_SNS_TOPIC_ARN
-        }).promise().catch(err => console.error("SNS Background Error:", err));
+        }).promise().catch(err => console.error("SNS Error:", err));
 
-        // Now the response is sent to the user immediately
-        res.json({ success: true, token });
-        
-       
-        console.log(`📁 File Uploaded and Logged: ${req.file.originalname}`);
+        // FIXED: Only ONE response sent now
         res.status(200).json({ 
             success: true, 
-            message: "File stored in S3 and RDS log created!",
+            message: "File stored successfully!",
             url: req.file.location 
         });
     } catch (err) {
         console.error("Upload Error:", err.message);
-        res.status(500).send({ success: false, error: 'Database or S3 error during upload.' });
+        res.status(500).send({ success: false, error: 'Upload failed.' });
     }
 });
 
-
-// --- HEALTH & INFRASTRUCTURE ROUTES ---
-
-// Critical for AWS Load Balancer Health Check (Requirement 7)
 app.get('/health', (req, res) => res.status(200).send('Instance is Healthy'));
-
-app.get('/', (req, res) => res.send('Backend Server is Active on AWS EC2!'));
+app.get('/', (req, res) => res.send('Backend Server is Active!'));
 
 app.listen(PORT, () => {
     console.log(`🚀 Server started on Port ${PORT}`);
-    console.log(`📡 SNS Monitoring Active: ${process.env.AWS_SNS_TOPIC_ARN}`);
 });
